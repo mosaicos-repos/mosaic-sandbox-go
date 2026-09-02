@@ -4,14 +4,10 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 
 ## Installation
 
-The module is not published yet. `github.com/mosaicos/mosaic-sandbox-go` is the
-path it will be served from, but that repository does not exist: Go fetches a
-module from its source repository rather than from a registry copy, so the code
-living in this private monorepo cannot be resolved by `go get`. MOS-442 tracks
-publishing the public mirror; until then, consume the SDK from a checkout:
+Install the tagged module through the Go proxy:
 
 ```bash
-go mod edit -replace github.com/mosaicos/mosaic-sandbox-go=/path/to/mosaic-sandbox/go
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.14.0
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
@@ -30,7 +26,7 @@ import (
 	"fmt"
 	"log"
 
-	mosaic "github.com/mosaicos/mosaic-sandbox-go"
+	mosaic "github.com/mosaicos-repos/mosaic-sandbox-go"
 )
 
 func main() {
