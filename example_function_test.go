@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	mosaic "github.com/mosaicos/mosaic-sandbox-go"
+	mosaic "github.com/mosaicos-repos/mosaic-sandbox-go"
 )
 
 // This mirrors the Functions section of README.md. It has no Output comment, so
