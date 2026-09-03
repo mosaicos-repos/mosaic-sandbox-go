@@ -7,7 +7,7 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 Install the tagged module through the Go proxy:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.14.0
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.14.1
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
@@ -75,6 +75,43 @@ use `RunOnce` for a single run that keeps its sandbox. Retrying with the same
 
 Work that must outlive one synchronous call belongs in a process or job, and
 work that needs a URL belongs behind a preview.
+
+## Long-running attempts
+
+Synchronous exec is capped at 900,000 ms (15 minutes). A durable process is
+owned by the sandbox rather than by the request that starts it, so persist the
+sandbox and process IDs and reconnect after a client restart. Its lifetime is
+bounded by its own timeout, when supplied, and by the sandbox TTL.
+
+```go
+ttlSeconds := 86400
+sandbox, err := client.CreateSandbox(ctx, mosaic.CreateOptions{
+	Template: "base", TTLSeconds: &ttlSeconds,
+})
+if err != nil { log.Fatal(err) }
+defer sandbox.Destroy(ctx)
+
+started, err := sandbox.Processes().Start(ctx,
+	mosaic.Argv("python", "-m", "train"), mosaic.StartOptions{})
+if err != nil { log.Fatal(err) }
+sandboxID, processID := sandbox.ID, started.ID
+
+sandbox, err = client.ConnectSandbox(ctx, sandboxID)
+if err != nil { log.Fatal(err) }
+processes, err := sandbox.Processes().List(ctx)
+if err != nil { log.Fatal(err) }
+var handle *mosaic.Process
+for _, process := range processes {
+	if process.ID == processID { handle = process; break }
+}
+if handle == nil { log.Fatal("process not found") }
+result, err := handle.Wait(ctx)
+if err != nil || !result.Success { log.Fatal("attempt failed") }
+```
+
+A running process prevents hibernation; after it finishes, pause/resume works
+normally. Call `handle.Kill(ctx)` to cancel it. The full Python, TypeScript,
+Go, CLI, and raw-HTTP recovery patterns are in the public documentation.
 
 ## Create, execute, and destroy
 
