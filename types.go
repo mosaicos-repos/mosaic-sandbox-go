@@ -121,7 +121,7 @@ type ExecutionResult struct {
 	Stdout          string       `json:"stdout"`
 	Stderr          string       `json:"stderr"`
 	ExitCode        int          `json:"exit_code"`
-	TTIMs           int          `json:"tti_ms"`
+	TTIMs           float64      `json:"tti_ms"`
 	DurationMS      float64      `json:"duration_ms"`
 	Success         bool         `json:"success"`
 	Reason          string       `json:"reason"`

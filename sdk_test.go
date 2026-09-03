@@ -141,6 +141,40 @@ func TestCreateBodiesAndListQuery(t *testing.T) {
 	}
 }
 
+func TestFractionalTTIMilliseconds(t *testing.T) {
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/sandboxes" && r.Method == http.MethodPost:
+			io.WriteString(w, `{"id":"sbx","tti_ms":7.47843}`)
+		case r.URL.Path == "/v1/sandboxes/sbx" && r.Method == http.MethodGet:
+			io.WriteString(w, `{"id":"sbx","tti_ms":8.25}`)
+		case r.URL.Path == "/v1/sandboxes/sbx/exec" && r.Method == http.MethodPost:
+			io.WriteString(w, `{"sandbox_id":"sbx","execution_id":"exec","exit_code":0,"success":true,"tti_ms":9.125}`)
+		case r.URL.Path == "/v1/run" && r.Method == http.MethodPost:
+			io.WriteString(w, `{"sandbox_id":"once","execution_id":"exec-once","exit_code":0,"success":true,"sandbox_destroyed":true,"tti_ms":10.75}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	created, err := client.CreateSandbox(context.Background(), CreateOptions{})
+	if err != nil || created.TTIMs != 7.47843 {
+		t.Fatalf("create fractional tti_ms = %#v, %v", created, err)
+	}
+	reconnected, err := client.ConnectSandbox(context.Background(), "sbx")
+	if err != nil || reconnected.TTIMs != 8.25 {
+		t.Fatalf("connect fractional tti_ms = %#v, %v", reconnected, err)
+	}
+	execution, err := created.Exec(context.Background(), Argv("true"), ExecOptions{})
+	if err != nil || execution.TTIMs != 9.125 {
+		t.Fatalf("exec fractional tti_ms = %#v, %v", execution, err)
+	}
+	oneShot, err := client.RunOnce(context.Background(), Argv("true"), RunOnceOptions{})
+	if err != nil || oneShot.TTIMs != 10.75 {
+		t.Fatalf("run once fractional tti_ms = %#v, %v", oneShot, err)
+	}
+}
+
 func TestFileBase64AndSSE(t *testing.T) {
 	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
