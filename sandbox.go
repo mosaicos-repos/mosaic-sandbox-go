@@ -99,7 +99,7 @@ type sandboxWire struct {
 	Name                *string `json:"name"`
 	Region              *string `json:"region"`
 	Metro               *string `json:"metro"`
-	TTIMS               int     `json:"tti_ms"`
+	TTIMS               float64 `json:"tti_ms"`
 	Reused              bool    `json:"reused"`
 	Resumed             bool    `json:"resumed"`
 	SSHHost             string  `json:"ssh_host"`
@@ -435,7 +435,7 @@ type Sandbox struct {
 	Name    string
 	Region  string
 	Metro   string
-	TTIMs   int
+	TTIMs   float64
 	SSH     *SSHEndpoint
 	Reused  bool
 	Resumed bool
