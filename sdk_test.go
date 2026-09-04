@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -25,6 +26,12 @@ func testClient(t *testing.T, handler http.Handler) *Client {
 	client.transport.sleep = func(context.Context, time.Duration) error { return nil }
 	client.transport.keyGenerator = func() (string, error) { return "test-key", nil }
 	return client
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }
 
 func TestResolutionPrecedence(t *testing.T) {
@@ -108,6 +115,276 @@ func TestRetryPolicyAndCancellation(t *testing.T) {
 	client.transport.retries = 3
 	if err := client.transport.request(context.Background(), http.MethodPost, "/v1/sandboxes/x/exec", nil, ""); calls != 1 || err == nil {
 		t.Fatalf("non-replayable 500 retry = %v, calls=%d", err, calls)
+	}
+}
+
+func TestDestroyRetriesDestroyIncompleteAndHonorsRetryAfter(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			http.Error(w, `{"error":"destroy_incomplete","retry_after_seconds":3}`, http.StatusGatewayTimeout)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	var waits []time.Duration
+	client.transport.sleep = func(_ context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		return nil
+	}
+	if err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || len(waits) != 1 || waits[0] != 3*time.Second {
+		t.Fatalf("destroy calls=%d waits=%v", calls, waits)
+	}
+}
+
+func TestDestroyRetriesDestroyOutcomeUnknown(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			http.Error(w, `{"error":"destroy_outcome_unknown"}`, http.StatusGatewayTimeout)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	if err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("destroy calls=%d", calls)
+	}
+}
+
+func TestDestroyRetriesRateLimitThroughSharedRequest(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, `{"error":"rate_limited"}`, http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	var waits []time.Duration
+	client.transport.retries = 1
+	client.transport.sleep = func(_ context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		return nil
+	}
+	if err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || len(waits) != 1 || waits[0] != time.Second {
+		t.Fatalf("destroy calls=%d waits=%v", calls, waits)
+	}
+}
+
+func TestDestroyRetriesAmbiguousTransportFailure(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			hijacker, ok := w.(http.Hijacker)
+			if !ok {
+				t.Fatal("test server does not support hijacking")
+			}
+			connection, _, err := hijacker.Hijack()
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = connection.Close()
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	client, err := New(WithEndpoint(server.URL), WithAPIToken("msk_test"), WithRetries(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.transport.sleep = func(context.Context, time.Duration) error { return nil }
+	if err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("destroy calls=%d", calls)
+	}
+}
+
+func TestDestroyTransportRetryHonorsCancellation(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("test server does not support hijacking")
+		}
+		connection, _, err := hijacker.Hijack()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = connection.Close()
+	}))
+	t.Cleanup(server.Close)
+	client, err := New(WithEndpoint(server.URL), WithAPIToken("msk_test"), WithRetries(0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	client.transport.sleep = func(context.Context, time.Duration) error {
+		cancel()
+		return context.Canceled
+	}
+	err = (&Sandbox{ID: "sbx", client: client}).Destroy(ctx)
+	if !errors.Is(err, context.Canceled) || calls != 1 {
+		t.Fatalf("destroy cancellation = %v, calls=%d", err, calls)
+	}
+}
+
+func TestDestroyTreatsNotFoundAsSuccess(t *testing.T) {
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
+	}))
+	if err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDestroyDoesNotRetryOtherGatewayTimeouts(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, `{"error":"origin_timeout"}`, http.StatusGatewayTimeout)
+	}))
+	if err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background()); err == nil {
+		t.Fatal("destroy unexpectedly succeeded")
+	}
+	if calls != 1 {
+		t.Fatalf("destroy calls=%d", calls)
+	}
+}
+
+func TestDestroyExhaustionPreservesErrorAndExplainsIdempotency(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, `{"error":"destroy_incomplete"}`, http.StatusGatewayTimeout)
+	}))
+	var waits []time.Duration
+	client.transport.sleep = func(_ context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		return nil
+	}
+	err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "idempotent") {
+		t.Fatalf("destroy error=%v", err)
+	}
+	if calls != 7 || len(waits) != 6 {
+		t.Fatalf("destroy calls=%d waits=%v", calls, waits)
+	}
+}
+
+func TestDestroyOutcomeUnknownExhaustionPreservesErrorType(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, `{"error":"destroy_outcome_unknown"}`, http.StatusGatewayTimeout)
+	}))
+	var waits []time.Duration
+	client.transport.sleep = func(_ context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		return nil
+	}
+	err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background())
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "destroy_outcome_unknown" || !strings.Contains(err.Error(), "idempotent") {
+		t.Fatalf("destroy error=%v", err)
+	}
+	if calls != 7 || len(waits) != 6 {
+		t.Fatalf("destroy calls=%d waits=%v", calls, waits)
+	}
+}
+
+func TestDestroyTransportExhaustionPreservesOriginalError(t *testing.T) {
+	var calls int
+	originalErr := errors.New("connection reset")
+	client, err := New(WithEndpoint("https://example.test"), WithAPIToken("msk_test"), WithRetries(0), WithHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			calls++
+			return nil, originalErr
+		}),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.transport.sleep = func(context.Context, time.Duration) error { return nil }
+	err = (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "idempotent") {
+		t.Fatalf("destroy error=%v", err)
+	}
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		t.Fatalf("destroy error type = %T, %v", err, err)
+	}
+	if !errors.Is(err, originalErr) {
+		t.Fatalf("destroy error does not unwrap original: %v", err)
+	}
+	if calls != 3 {
+		t.Fatalf("destroy calls=%d", calls)
+	}
+}
+
+func TestDestroyDeadlineStopsBeforeCrossingNextDelay(t *testing.T) {
+	var calls int
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		http.Error(w, `{"error":"destroy_outcome_unknown"}`, http.StatusGatewayTimeout)
+	}))
+	now := time.Unix(0, 0)
+	client.transport.now = func() time.Time { return now }
+	var waits []time.Duration
+	client.transport.sleep = func(_ context.Context, delay time.Duration) error {
+		waits = append(waits, delay)
+		now = now.Add(delay + 10*time.Second)
+		return nil
+	}
+	err := (&Sandbox{ID: "sbx", client: client}).Destroy(context.Background())
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "destroy_outcome_unknown" || !strings.Contains(err.Error(), "after 5 attempts") {
+		t.Fatalf("destroy error=%v", err)
+	}
+	if calls != 5 || len(waits) != 4 {
+		t.Fatalf("destroy calls=%d waits=%v", calls, waits)
+	}
+}
+
+func TestResumeRetriesTransientFailureWithoutIdempotencyKey(t *testing.T) {
+	var calls int
+	var keys []string
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		keys = append(keys, r.Header.Get("Idempotency-Key"))
+		if r.URL.Path != "/v1/sandboxes/sbx/resume" || r.Method != http.MethodPost {
+			t.Fatalf("resume request = %s %s", r.Method, r.URL.Path)
+		}
+		if calls == 1 {
+			http.Error(w, `{"error":"origin_timeout"}`, http.StatusGatewayTimeout)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	client.transport.retries = 1
+
+	if err := (&Sandbox{ID: "sbx", client: client}).Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || len(keys) != 2 || keys[0] != "" || keys[1] != "" {
+		t.Fatalf("resume calls = %d, keys = %#v", calls, keys)
 	}
 }
 
