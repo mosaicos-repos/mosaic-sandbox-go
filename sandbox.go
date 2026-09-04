@@ -486,7 +486,7 @@ func (s *Sandbox) ExecStream(ctx context.Context, command Command, options ExecO
 }
 
 func (s *Sandbox) Destroy(ctx context.Context) error {
-	return s.call(ctx, http.MethodDelete, "", nil, "", nil)
+	return s.client.transport.destroy(ctx, "/v1/sandboxes/"+url.PathEscape(s.ID))
 }
 
 func (s *Sandbox) Pause(ctx context.Context) error {

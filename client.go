@@ -29,6 +29,11 @@ var (
 	ErrUnknownField        = errors.New("unknown field")
 )
 
+var destroyRetryableCodes = map[string]struct{}{
+	"destroy_incomplete":      {},
+	"destroy_outcome_unknown": {},
+}
+
 type Error struct {
 	Status             int
 	Code               string
@@ -160,6 +165,7 @@ type transport struct {
 	retries          int
 	sleep            func(context.Context, time.Duration) error
 	keyGenerator     func() (string, error)
+	now              func() time.Time
 }
 
 func WithEndpoint(endpoint string) Option {
@@ -232,7 +238,7 @@ func New(opts ...Option) (*Client, error) {
 	}
 	t := &transport{
 		endpoint: endpoint, token: token, credentialSource: source, client: client,
-		retries: retries, sleep: sleepContext, keyGenerator: randomUUID,
+		retries: retries, sleep: sleepContext, keyGenerator: randomUUID, now: time.Now,
 	}
 	return &Client{transport: t}, nil
 }
@@ -273,12 +279,19 @@ func replayable(method, path string) bool {
 	if method != http.MethodPost {
 		return false
 	}
-	return replayablePattern.MatchString(path)
+	return replayablePattern.MatchString(path) || idempotentPostPattern.MatchString(path)
 }
 
 var replayablePattern = regexp.MustCompile(`^/v1/(sandboxes|sandboxes/async|run|volumes|environments|snapshots/[^/]+/replicas|sandboxes/[^/]+/(fork|snapshots|previews|fanout))(\?|$)`)
+var idempotentPostPattern = regexp.MustCompile(`^/v1/sandboxes/[^/]+/resume(\?|$)`)
 
 var retryableStatuses = map[int]bool{429: true, 500: true, 502: true, 503: true, 504: true}
+var destroyRetryDelays = []time.Duration{
+	time.Second, 2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second,
+}
+
+const destroyDeadline = 61 * time.Second
+const destroyTransportRetryLimit = 2
 
 func retryable(status int, body string) bool {
 	if retryableStatuses[status] {
@@ -317,10 +330,82 @@ func (t *transport) request(ctx context.Context, method, path string, body any, 
 	return t.requestInto(ctx, method, path, body, callerKey, &output)
 }
 
+func (t *transport) destroy(ctx context.Context, path string) error {
+	deadline := t.now().Add(destroyDeadline)
+	attempts := 0
+	codedRetries := 0
+	transportRetries := 0
+	var lastErr error
+	for {
+		if attempts > 0 && !t.now().Before(deadline) {
+			return destroyExhausted(lastErr, attempts)
+		}
+		attempts++
+		err := t.requestInto(ctx, http.MethodDelete, path, nil, "", nil)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		apiErr, ok := err.(*Error)
+		if ok && apiErr.Status == http.StatusNotFound {
+			return nil
+		}
+		retryable := !ok
+		if ok {
+			_, retryable = destroyRetryableCodes[apiErr.Code]
+			retryable = retryable && apiErr.Status == http.StatusGatewayTimeout
+		}
+		if !retryable {
+			return apiErr
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+			return err
+		}
+		if !ok {
+			transportRetries++
+			if transportRetries > destroyTransportRetryLimit {
+				return destroyExhausted(err, attempts)
+			}
+		} else {
+			if codedRetries >= len(destroyRetryDelays) {
+				return destroyExhausted(err, attempts)
+			}
+		}
+		delayIndex := codedRetries
+		if !ok {
+			delayIndex = transportRetries - 1
+		} else {
+			codedRetries++
+		}
+		delay := destroyRetryDelays[delayIndex]
+		if apiErr != nil && apiErr.RetryAfterSeconds > 0 {
+			requested := time.Duration(apiErr.RetryAfterSeconds * float64(time.Second))
+			if requested > delay {
+				delay = requested
+			}
+		}
+		if t.now().Add(delay).After(deadline) {
+			return destroyExhausted(err, attempts)
+		}
+		if err := t.sleep(ctx, delay); err != nil {
+			return err
+		}
+	}
+}
+
+func destroyExhausted(err error, attempts int) error {
+	message := fmt.Sprintf(" Destroy is idempotent; retry may succeed after %d attempts.", attempts)
+	if apiErr, ok := err.(*Error); ok {
+		apiErr.Message += message
+		return apiErr
+	}
+	return fmt.Errorf("%w%s", err, message)
+}
+
 func (t *transport) requestInto(ctx context.Context, method, path string, body any, callerKey string, output any) error {
 	replay := replayable(method, path)
 	key := callerKey
-	if key == "" && replay && method == http.MethodPost {
+	if key == "" && method == http.MethodPost && replayablePattern.MatchString(path) {
 		var err error
 		key, err = t.keyGenerator()
 		if err != nil {
