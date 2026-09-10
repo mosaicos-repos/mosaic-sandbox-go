@@ -340,6 +340,7 @@ type TemplateCatalogueTemplate struct {
 	AvailableTools   []string            `json:"available_tools"`
 	UnavailableTools []string            `json:"unavailable_tools"`
 	Image            ImageCatalogueEntry `json:"image"`
+	ImageProvenance  *ImageProvenance    `json:"image_provenance,omitempty"`
 }
 
 type SupportedShape struct {
@@ -354,6 +355,23 @@ type ImageCatalogueEntry struct {
 	Debian   string            `json:"debian"`
 	Versions map[string]string `json:"versions"`
 	Tools    []string          `json:"tools"`
+}
+
+type ImageManifestVariant struct {
+	Image      ImageCatalogueEntry `json:"image"`
+	Hosts      int                 `json:"hosts"`
+	ReleaseIDs []string            `json:"release_ids"`
+}
+
+type ImageProvenance struct {
+	Status           string                 `json:"status"`
+	SampledAt        *string                `json:"sampled_at"`
+	RequestedHosts   int                    `json:"requested_hosts"`
+	RespondedHosts   int                    `json:"responded_hosts"`
+	ReportedHosts    int                    `json:"reported_hosts"`
+	CatalogBuildID   string                 `json:"catalog_build_id"`
+	IntendedVariants []ImageManifestVariant `json:"intended_variants"`
+	ObservedVariants []ImageManifestVariant `json:"observed_variants"`
 }
 
 type ForkOptions struct {
