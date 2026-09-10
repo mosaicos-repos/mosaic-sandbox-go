@@ -34,6 +34,24 @@ func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) 
 	return f(request)
 }
 
+func TestTemplateImageProvenance(t *testing.T) {
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/templates" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"default_template":"base","templates":[{"id":"base","image":{"template":"base","build_id":"2026-08-29T19:41:11Z","debian":"bookworm","versions":{},"tools":[]},"image_provenance":{"status":"drifted","sampled_at":"2026-09-10T00:00:00Z","requested_hosts":1,"responded_hosts":1,"reported_hosts":1,"catalog_build_id":"2026-08-29T19:41:11Z","intended_variants":[],"observed_variants":[{"image":{"template":"base","build_id":"2026-09-02T23:01:34Z","debian":"bookworm","versions":{},"tools":[]},"hosts":1,"release_ids":["release-1"]}]}}]}`)
+	}))
+
+	catalogue, err := client.Templates(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	provenance := catalogue.Templates[0].ImageProvenance
+	if provenance == nil || provenance.Status != "drifted" || provenance.ObservedVariants[0].Hosts != 1 {
+		t.Fatalf("image provenance = %#v", provenance)
+	}
+}
+
 func TestResolutionPrecedence(t *testing.T) {
 	t.Setenv("MOSAIC_API_URL", "https://mosaic")
 	t.Setenv("MAR_ENDPOINT", "https://mar")
