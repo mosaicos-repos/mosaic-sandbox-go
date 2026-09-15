@@ -7,7 +7,7 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 Install the tagged module through the Go proxy:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.14.4
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.14.5
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
