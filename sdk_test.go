@@ -796,3 +796,44 @@ func TestExecStreamCancellation(t *testing.T) {
 		t.Fatalf("cancelled stream = next %v, err %v", next, stream.Err())
 	}
 }
+
+func TestPausePreservationOptionsAndRefusal(t *testing.T) {
+	var bodies []string
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/sandboxes/sbx/pause" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, strings.TrimSpace(string(body)))
+		w.Header().Set("Content-Type", "application/json")
+		if len(bodies) > 3 {
+			w.WriteHeader(409)
+			_, _ = io.WriteString(w, `{"error":"sandbox_busy","message":"timed processes cannot be preserved"}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{}`)
+	}))
+	sandbox := &Sandbox{ID: "sbx", client: client}
+	ctx := context.Background()
+	if err := sandbox.Pause(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.PauseWithOptions(ctx, PauseOptions{PreserveProcesses: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.PauseWithOptions(ctx, PauseOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.PauseWithOptions(ctx, PauseOptions{PreserveProcesses: true}); err == nil || !strings.Contains(err.Error(), "timed processes") {
+		t.Fatalf("refusal = %v", err)
+	}
+	expected := []string{`{}`, `{"preserve_processes":true}`, `{}`, `{"preserve_processes":true}`}
+	if len(bodies) != len(expected) {
+		t.Fatalf("unexpected fallback request: %v", bodies)
+	}
+	for i := range expected {
+		if bodies[i] != expected[i] {
+			t.Errorf("body[%d] = %s", i, bodies[i])
+		}
+	}
+}
