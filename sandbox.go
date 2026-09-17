@@ -489,8 +489,21 @@ func (s *Sandbox) Destroy(ctx context.Context) error {
 	return s.client.transport.destroy(ctx, "/v1/sandboxes/"+url.PathEscape(s.ID))
 }
 
+// PauseOptions controls local pause. Preservation requires a supporting daemon
+// and untimed durable guest processes; timed processes, active SSH sessions and
+// process-preserving archives remain unsupported.
+type PauseOptions struct {
+	PreserveProcesses bool `json:"preserve_processes,omitempty"`
+}
+
 func (s *Sandbox) Pause(ctx context.Context) error {
-	return s.call(ctx, http.MethodPost, "/pause", map[string]any{}, "", nil)
+	return s.PauseWithOptions(ctx, PauseOptions{})
+}
+
+// PauseWithOptions explicitly opts into local process preservation. Server
+// refusals propagate; this never falls back to killing or restarting processes.
+func (s *Sandbox) PauseWithOptions(ctx context.Context, options PauseOptions) error {
+	return s.call(ctx, http.MethodPost, "/pause", options, "", nil)
 }
 
 func (s *Sandbox) Resume(ctx context.Context) error {
