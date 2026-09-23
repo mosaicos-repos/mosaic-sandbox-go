@@ -837,3 +837,54 @@ func TestPausePreservationOptionsAndRefusal(t *testing.T) {
 		}
 	}
 }
+
+func TestArchivePreservationOptionsAndRefusal(t *testing.T) {
+	for _, status := range []int{http.StatusConflict, http.StatusNotFound, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			code := "sandbox_busy"
+			if status == http.StatusServiceUnavailable {
+				code = "archive_unavailable"
+			}
+			var bodies []string
+			client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost || r.URL.Path != "/v1/sandboxes/sbx/archive" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+				}
+				body, _ := io.ReadAll(r.Body)
+				bodies = append(bodies, strings.TrimSpace(string(body)))
+				if len(bodies) <= 3 {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = io.WriteString(w, `{"error":"`+code+`","message":"archive refused by this daemon"}`)
+			}))
+			sandbox := &Sandbox{ID: "sbx", client: client}
+			ctx := context.Background()
+			if err := sandbox.Archive(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := sandbox.ArchiveWithOptions(ctx, ArchiveOptions{PreserveProcesses: true}); err != nil {
+				t.Fatal(err)
+			}
+			if err := sandbox.ArchiveWithOptions(ctx, ArchiveOptions{}); err != nil {
+				t.Fatal(err)
+			}
+			err := sandbox.ArchiveWithOptions(ctx, ArchiveOptions{PreserveProcesses: true})
+			var apiErr *Error
+			if !errors.As(err, &apiErr) || apiErr.Status != status || apiErr.Code != code || !strings.Contains(err.Error(), "archive refused") {
+				t.Fatalf("refusal = %v", err)
+			}
+			expected := []string{`{}`, `{"preserve_processes":true}`, `{}`, `{"preserve_processes":true}`}
+			if len(bodies) != len(expected) {
+				t.Fatalf("unexpected fallback request: %v", bodies)
+			}
+			for i := range expected {
+				if bodies[i] != expected[i] {
+					t.Errorf("body[%d] = %s", i, bodies[i])
+				}
+			}
+		})
+	}
+}
