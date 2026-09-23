@@ -490,8 +490,8 @@ func (s *Sandbox) Destroy(ctx context.Context) error {
 }
 
 // PauseOptions controls local pause. Preservation requires a supporting daemon
-// and untimed durable guest processes; timed processes, active SSH sessions and
-// process-preserving archives remain unsupported.
+// and untimed durable guest processes; timed processes and active SSH sessions
+// remain unsupported. Use Archive for disk-backed recovery.
 type PauseOptions struct {
 	PreserveProcesses bool `json:"preserve_processes,omitempty"`
 }
@@ -504,6 +504,26 @@ func (s *Sandbox) Pause(ctx context.Context) error {
 // refusals propagate; this never falls back to killing or restarting processes.
 func (s *Sandbox) PauseWithOptions(ctx context.Context, options PauseOptions) error {
 	return s.call(ctx, http.MethodPost, "/pause", options, "", nil)
+}
+
+// ArchiveOptions controls disk-backed recovery of a persist:true sandbox.
+// Preservation requires a supporting daemon and untimed durable guest processes.
+// Managed credentials, timed processes and active SSH sessions are refused;
+// preservation currently accepts only device-free guests. The hosted gateway
+// refuses archive until lifecycle accounting is qualified.
+type ArchiveOptions struct {
+	PreserveProcesses bool `json:"preserve_processes,omitempty"`
+}
+
+// Archive saves a persistent sandbox for same-ID Resume, refusing live processes.
+func (s *Sandbox) Archive(ctx context.Context) error {
+	return s.ArchiveWithOptions(ctx, ArchiveOptions{})
+}
+
+// ArchiveWithOptions explicitly opts into process preservation on a supporting
+// daemon. Server refusals propagate without killing or restarting processes.
+func (s *Sandbox) ArchiveWithOptions(ctx context.Context, options ArchiveOptions) error {
+	return s.call(ctx, http.MethodPost, "/archive", options, "", nil)
 }
 
 func (s *Sandbox) Resume(ctx context.Context) error {
