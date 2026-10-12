@@ -394,21 +394,22 @@ type ForkShortfall struct {
 }
 
 type Limits struct {
-	Region          string           `json:"region"`
-	Regions         []string         `json:"regions"`
-	Placement       string           `json:"placement"`
-	DefaultTemplate string           `json:"default_template"`
-	Environments    map[string]any   `json:"environments"`
-	Templates       []map[string]any `json:"templates"`
-	Execution       map[string]any   `json:"execution"`
-	Hibernation     map[string]any   `json:"hibernation"`
-	Fork            map[string]any   `json:"fork"`
-	Volume          map[string]any   `json:"volume"`
-	Previews        map[string]any   `json:"previews"`
-	Processes       map[string]any   `json:"processes"`
-	Files           map[string]any   `json:"files"`
-	Guest           map[string]any   `json:"guest"`
-	Values          map[string]any   `json:"-"`
+	Concurrency     RuntimeConcurrency `json:"concurrency"`
+	Region          string             `json:"region"`
+	Regions         []string           `json:"regions"`
+	Placement       string             `json:"placement"`
+	DefaultTemplate string             `json:"default_template"`
+	Environments    map[string]any     `json:"environments"`
+	Templates       []map[string]any   `json:"templates"`
+	Execution       map[string]any     `json:"execution"`
+	Hibernation     map[string]any     `json:"hibernation"`
+	Fork            map[string]any     `json:"fork"`
+	Volume          map[string]any     `json:"volume"`
+	Previews        map[string]any     `json:"previews"`
+	Processes       map[string]any     `json:"processes"`
+	Files           map[string]any     `json:"files"`
+	Guest           map[string]any     `json:"guest"`
+	Values          map[string]any     `json:"-"`
 }
 
 type ExecStream struct {

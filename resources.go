@@ -14,21 +14,34 @@ type runtimeTemplate struct {
 	DefaultVCPU     int    `json:"default_vcpu"`
 }
 
+// RuntimeConcurrency reports retained and pending allocations, including
+// hibernated sandboxes. Entitlement does not promise running fleet capacity.
+type RuntimeConcurrency struct {
+	MaxActiveSandboxesPerOrganization        int    `json:"max_active_sandboxes_per_organization"`
+	DefaultMaxActiveSandboxesPerOrganization int    `json:"default_max_active_sandboxes_per_organization"`
+	MaxActiveSandboxesPerAPIKey              *int   `json:"max_active_sandboxes_per_api_key"`
+	EffectiveMaxActiveSandboxesPerAPIKey     int    `json:"effective_max_active_sandboxes_per_api_key"`
+	CountsHibernated                         bool   `json:"counts_hibernated"`
+	PolicyRevision                           int    `json:"policy_revision"`
+	Counting                                 string `json:"counting"`
+}
+
 type RuntimeLimits struct {
-	Region          string            `json:"region"`
-	Regions         []string          `json:"regions"`
-	Placement       string            `json:"placement"`
-	DefaultTemplate string            `json:"default_template"`
-	Templates       []runtimeTemplate `json:"templates"`
-	Environments    map[string]any    `json:"environments"`
-	Execution       map[string]any    `json:"execution"`
-	Hibernation     map[string]any    `json:"hibernation"`
-	Fork            map[string]any    `json:"fork"`
-	Volume          map[string]any    `json:"volume"`
-	Previews        map[string]any    `json:"previews"`
-	Processes       map[string]any    `json:"processes"`
-	Files           map[string]any    `json:"files"`
-	Guest           map[string]any    `json:"guest"`
+	Concurrency     RuntimeConcurrency `json:"concurrency"`
+	Region          string             `json:"region"`
+	Regions         []string           `json:"regions"`
+	Placement       string             `json:"placement"`
+	DefaultTemplate string             `json:"default_template"`
+	Templates       []runtimeTemplate  `json:"templates"`
+	Environments    map[string]any     `json:"environments"`
+	Execution       map[string]any     `json:"execution"`
+	Hibernation     map[string]any     `json:"hibernation"`
+	Fork            map[string]any     `json:"fork"`
+	Volume          map[string]any     `json:"volume"`
+	Previews        map[string]any     `json:"previews"`
+	Processes       map[string]any     `json:"processes"`
+	Files           map[string]any     `json:"files"`
+	Guest           map[string]any     `json:"guest"`
 }
 
 func (c *Client) SetSecret(ctx context.Context, name, value string) (*SecretInfo, error) {
