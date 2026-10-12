@@ -888,3 +888,20 @@ func TestArchivePreservationOptionsAndRefusal(t *testing.T) {
 		})
 	}
 }
+
+func TestLimitsPreservesEnterpriseEntitlement(t *testing.T) {
+	client := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/v1/limits" || req.Header.Get("Authorization") != "Bearer msk_test" {
+			t.Fatalf("unexpected authenticated limits request: %s", req.URL.Path)
+		}
+		io.WriteString(w, `{"concurrency":{"max_active_sandboxes_per_organization":100000,"max_active_sandboxes_per_api_key":null,"effective_max_active_sandboxes_per_api_key":100000,"counts_hibernated":true,"policy_revision":7,"counting":"retained_and_pending"}}`)
+	}))
+	limits, err := client.Limits(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	quota := limits.Concurrency
+	if quota.MaxActiveSandboxesPerOrganization != 100000 || quota.MaxActiveSandboxesPerAPIKey != nil || !quota.CountsHibernated || quota.PolicyRevision != 7 || quota.Counting != "retained_and_pending" {
+		t.Fatalf("lost entitlement fields: %+v", quota)
+	}
+}
