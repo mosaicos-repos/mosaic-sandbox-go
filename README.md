@@ -198,3 +198,10 @@ original hosted label. Already queued/running jobs keep their scheduling choice:
 inspect and cancel/reconcile them separately. Do not automatically rerun a started
 side-effecting job. Stop admission if pool qualification, cleanup, isolation or
 customer-impact gates fail. Required check names must remain unchanged.
+
+
+## SDK 0.14.9 release verification
+
+The module inputs match protected Mosaic Sandbox source `d0f239acf148831e026e54b05085d902f57fde26` (source preparation PR938). The synchronization is mirror commit `5339a11d11a2517d9d6790e59e8356c5fa084530` from PR11; all 11 module inputs have combined content digest `c596bc2b3d8d068c9308c3c8ee1c817c33d3ca3b94c32d78dd7b578920f7d6f4`. `go test ./...` passes. CPU metrics/evidence and workload-profile fields do not activate server policy.
+
+The mirror tag and registry publication are held until this source-parity release record receives independent review. PR11 merged under the existing mirror branch rules before an independent approval was recorded; this verification does not claim that earlier approval existed. The final signed `v0.14.9` tag will include the exact `sdk-v0.14.9` source-tag provenance and be verified through the public Go proxy/checksum database before Python/npm publishing. Previous `v0.14.8` remains the consumer rollback.
