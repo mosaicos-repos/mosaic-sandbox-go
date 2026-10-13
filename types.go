@@ -78,6 +78,8 @@ type RunOnceOptions struct {
 }
 
 type SandboxSummary struct {
+	RuntimeAttestation *RuntimeAttestation `json:"runtime_attestation,omitempty"`
+
 	ID          string            `json:"id"`
 	Name        *string           `json:"name"`
 	Template    string            `json:"template"`
@@ -311,18 +313,138 @@ type SecretInfo struct {
 	Readable   *bool  `json:"readable,omitempty"`
 }
 
+type CPUAllocation struct {
+	RequestedVCPU      int    `json:"requested_vcpu"`
+	ReservedMillicpus  uint32 `json:"reserved_millicpus"`
+	BurstMillicpus     uint32 `json:"burst_millicpus"`
+	EffectiveMillicpus uint32 `json:"effective_millicpus"`
+	Weight             uint32 `json:"weight"`
+	Revision           uint64 `json:"revision"`
+	PolicyVersion      string `json:"policy_version"`
+	Source             string `json:"source"`
+}
+
+type CPUReadback struct {
+	QuotaUsec          uint64 `json:"quota_usec"`
+	PeriodUsec         uint64 `json:"period_usec"`
+	EffectiveMillicpus uint32 `json:"effective_millicpus"`
+	Weight             uint32 `json:"weight"`
+}
+
+type RuntimeShape struct {
+	VCPU     int    `json:"vcpu"`
+	MemoryMB uint32 `json:"memory_mb"`
+}
+
+type RuntimeRequestedShape struct {
+	VCPU     *int    `json:"vcpu,omitempty"`
+	MemoryMB *uint32 `json:"memory_mb,omitempty"`
+}
+
+type RuntimeCPUProof struct {
+	Allocation CPUAllocation `json:"allocation"`
+	Readback   CPUReadback   `json:"readback"`
+}
+
+type RuntimeReceipt struct {
+	ReceiptID        string                 `json:"receipt_id"`
+	RuntimeID        string                 `json:"runtime_id"`
+	Operation        string                 `json:"operation"`
+	Path             string                 `json:"path"`
+	AdmissionProfile string                 `json:"admission_profile"`
+	RequestedShape   *RuntimeRequestedShape `json:"requested_shape"`
+	ResolvedShape    RuntimeShape           `json:"resolved_shape"`
+	ObservedShape    RuntimeShape           `json:"observed_shape"`
+	ObservedAtMS     uint64                 `json:"observed_at_ms"`
+	CPU              *RuntimeCPUProof       `json:"cpu"`
+}
+
+type RuntimeAttestation struct {
+	SchemaVersion  uint8           `json:"schema_version"`
+	Origin         *RuntimeReceipt `json:"origin"`
+	LastTransition RuntimeReceipt  `json:"last_transition"`
+}
+
+type CPUStat struct {
+	UsageUsec     uint64 `json:"usage_usec"`
+	UserUsec      uint64 `json:"user_usec"`
+	SystemUsec    uint64 `json:"system_usec"`
+	NrPeriods     uint64 `json:"nr_periods"`
+	NrThrottled   uint64 `json:"nr_throttled"`
+	ThrottledUsec uint64 `json:"throttled_usec"`
+}
+
+type CPUPressureLine struct {
+	Avg10     float64 `json:"avg10"`
+	Avg60     float64 `json:"avg60"`
+	Avg300    float64 `json:"avg300"`
+	TotalUsec uint64  `json:"total_usec"`
+}
+
+type CPUPressure struct {
+	Some CPUPressureLine  `json:"some"`
+	Full *CPUPressureLine `json:"full"`
+}
+
+type CPUTelemetry struct {
+	DemandEvidence *CPUDemandEvidence `json:"demand_evidence,omitempty"`
+
+	AccountingScope       string        `json:"accounting_scope"`
+	Allocation            CPUAllocation `json:"allocation"`
+	Readback              CPUReadback   `json:"readback"`
+	EnforcementMatches    bool          `json:"enforcement_matches"`
+	NeedsReconciliation   bool          `json:"needs_reconciliation"`
+	AttemptedRevision     *uint64       `json:"attempted_revision"`
+	Stat                  CPUStat       `json:"stat"`
+	Pressure              CPUPressure   `json:"pressure"`
+	SampledAtUnixMS       uint64        `json:"sampled_at_unix_ms"`
+	ReadDurationUsec      uint64        `json:"read_duration_usec"`
+	IntervalUsec          *uint64       `json:"interval_usec"`
+	Stale                 bool          `json:"stale"`
+	CountersReset         bool          `json:"counters_reset"`
+	Delta                 *CPUStat      `json:"delta"`
+	UsageCores            *float64      `json:"usage_cores"`
+	BudgetUtilization     *float64      `json:"budget_utilization"`
+	PressureSomeDeltaUsec *uint64       `json:"pressure_some_delta_usec"`
+	PressureFullDeltaUsec *uint64       `json:"pressure_full_delta_usec"`
+}
+
+type CPUDemandEvidence struct {
+	SchemaVersion         uint32   `json:"schema_version"`
+	Scope                 string   `json:"scope"`
+	AllocationRevision    uint64   `json:"allocation_revision"`
+	SampledAtUnixMS       uint64   `json:"sampled_at_unix_ms"`
+	Constrained           *bool    `json:"constrained"`
+	Reasons               []string `json:"reasons"`
+	IntervalUsec          *uint64  `json:"interval_usec"`
+	UsageMillicpus        *float64 `json:"usage_millicpus"`
+	ThrottledUsec         *uint64  `json:"throttled_usec"`
+	ThrottledPeriods      *uint64  `json:"throttled_periods"`
+	PressureSomeDeltaUsec *uint64  `json:"pressure_some_delta_usec"`
+	PressureFullDeltaUsec *uint64  `json:"pressure_full_delta_usec"`
+}
+
+type SandboxCPUMetrics struct {
+	Allocation     CPUAllocation `json:"allocation"`
+	Telemetry      *CPUTelemetry `json:"telemetry,omitempty"`
+	TelemetryError *string       `json:"telemetry_error,omitempty"`
+}
+
 type SandboxMetrics struct {
-	SandboxID        string   `json:"sandbox_id"`
-	State            string   `json:"state"`
-	VCPU             int      `json:"vcpu"`
-	MemoryMB         int      `json:"memory_mb"`
-	CPUSecondsTotal  float64  `json:"cpu_seconds_total"`
-	CPUUsage         *float64 `json:"cpu_usage,omitempty"`
-	CPUWindowSeconds *float64 `json:"cpu_window_seconds,omitempty"`
-	MemoryUsedMB     int      `json:"memory_used_mb"`
-	UptimeSeconds    float64  `json:"uptime_seconds"`
-	AwakeSeconds     float64  `json:"awake_seconds"`
-	IdleSeconds      float64  `json:"idle_seconds"`
+	RuntimeAttestation *RuntimeAttestation `json:"runtime_attestation,omitempty"`
+
+	SandboxID        string             `json:"sandbox_id"`
+	State            string             `json:"state"`
+	VCPU             int                `json:"vcpu"`
+	MemoryMB         int                `json:"memory_mb"`
+	CPUSecondsTotal  float64            `json:"cpu_seconds_total"`
+	CPUUsage         *float64           `json:"cpu_usage,omitempty"`
+	CPUWindowSeconds *float64           `json:"cpu_window_seconds,omitempty"`
+	MemoryUsedMB     int                `json:"memory_used_mb"`
+	UptimeSeconds    float64            `json:"uptime_seconds"`
+	AwakeSeconds     float64            `json:"awake_seconds"`
+	IdleSeconds      float64            `json:"idle_seconds"`
+	CPU              *SandboxCPUMetrics `json:"cpu,omitempty"`
 }
 
 type TemplateCatalogue struct {
