@@ -95,6 +95,8 @@ func valueOr(value, fallback int) int {
 }
 
 type sandboxWire struct {
+	RuntimeAttestation *RuntimeAttestation `json:"runtime_attestation,omitempty"`
+
 	ID                  string  `json:"id"`
 	Name                *string `json:"name"`
 	Region              *string `json:"region"`
@@ -112,6 +114,7 @@ func (c *Client) newSandbox(value sandboxWire, options CreateOptions) *Sandbox {
 	sandbox := &Sandbox{
 		client: c, ID: value.ID, Name: stringValue(value.Name), Region: stringValue(value.Region), Metro: stringValue(value.Metro),
 		TTIMs: value.TTIMS, Reused: value.Reused, Resumed: value.Resumed,
+		RuntimeAttestation: value.RuntimeAttestation,
 	}
 	if value.SSHHost != "" && value.SSHPort != 0 {
 		sandbox.SSH = &SSHEndpoint{Host: value.SSHHost, Port: value.SSHPort, ConnectionString: value.SSHConnectionString, PrivateKey: value.SSHPrivateKey}
@@ -431,6 +434,8 @@ func (c *Client) WithSandbox(ctx context.Context, options CreateOptions, fn func
 }
 
 type Sandbox struct {
+	RuntimeAttestation *RuntimeAttestation
+
 	ID      string
 	Name    string
 	Region  string
