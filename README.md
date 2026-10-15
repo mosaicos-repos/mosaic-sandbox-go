@@ -7,7 +7,7 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 Install the tagged module through the Go proxy:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.14.5
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.0
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
@@ -205,3 +205,15 @@ customer-impact gates fail. Required check names must remain unchanged.
 The module inputs match protected Mosaic Sandbox source `d0f239acf148831e026e54b05085d902f57fde26` (source preparation PR938). The synchronization is mirror commit `5339a11d11a2517d9d6790e59e8356c5fa084530` from PR11; all 11 module inputs have combined content digest `c596bc2b3d8d068c9308c3c8ee1c817c33d3ca3b94c32d78dd7b578920f7d6f4`. `go test ./...` passes. CPU metrics/evidence and workload-profile fields do not activate server policy.
 
 The mirror tag and registry publication are held until this source-parity release record receives independent review. PR11 merged under the existing mirror branch rules before an independent approval was recorded; this verification does not claim that earlier approval existed. The final signed `v0.14.9` tag will include the exact `sdk-v0.14.9` source-tag provenance and be verified through the public Go proxy/checksum database before Python/npm publishing. Previous `v0.14.8` remains the consumer rollback.
+
+## SDK 0.15.0 release candidate
+
+Exact module inputs synchronized from reviewed protected Mosaic Sandbox main `2b92fb96980f02a19b30f2a2cf4fa6666566ef68` (PR983), including multi-key secret bundles, access-only consumer updates, private invocation inputs, service-scoped Connections and typed network-profile references. Stable/private activation remains gated by serving qualification; the SDK grants no route.
+
+All 18 module inputs have combined content digest `48bd381dea8f95f8c050881f2fed3f5e8bfba58313c90a061b028110920561d4`. All input bytes match source; the mirror adds no implementation. Root LICENSE/NOTICE match the source. The signed mirror release will carry:
+
+```text
+Source: mosaicos-repos/mosaic-sandbox sdk-v0.15.0 (2b92fb96980f02a19b30f2a2cf4fa6666566ef68)
+```
+
+Independent review, source/mirror signed-tag verification, clean-cache public proxy/source parity and the governed publisher remain release gates. Existing v0.14.9 remains the consumer package rollback; gateway/schema/runtime rollback has separate compatibility requirements.

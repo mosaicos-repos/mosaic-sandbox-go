@@ -3,8 +3,10 @@ package mosaic
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 type runtimeTemplate struct {
@@ -50,6 +52,51 @@ func (c *Client) SetSecret(ctx context.Context, name, value string) (*SecretInfo
 		return nil, err
 	}
 	return &result, nil
+}
+
+func (c *Client) SetSecretWithAccess(ctx context.Context, name, value string, access SecretAccessOptions) (*SecretInfo, error) {
+	if access.Version < 0 {
+		return nil, fmt.Errorf("positive expected secret version required")
+	}
+	path := "/v1/secrets/" + url.PathEscape(name)
+	if access.Version > 0 {
+		path += "?version=" + strconv.Itoa(access.Version)
+	}
+	body := map[string]any{"value": value}
+	if access.Consumers != nil {
+		body["consumers"] = access.Consumers
+	}
+	var result SecretInfo
+	if err := c.transport.requestInto(ctx, http.MethodPut, path, body, "", &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+func (c *Client) GetSecret(ctx context.Context, name string) (*SecretInfo, error) {
+	var result SecretInfo
+	if err := c.transport.requestInto(ctx, http.MethodGet, "/v1/secrets/"+url.PathEscape(name), nil, "", &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+func (c *Client) RestrictSecretConsumers(ctx context.Context, name string, consumers []string, version int) (*SecretInfo, error) {
+	if version < 1 {
+		return nil, fmt.Errorf("positive expected secret version required")
+	}
+	if consumers == nil {
+		consumers = []string{}
+	}
+	var result SecretInfo
+	if err := c.transport.requestInto(ctx, http.MethodPatch, "/v1/secrets/"+url.PathEscape(name)+"?version="+strconv.Itoa(version), map[string]any{"consumers": consumers}, "", &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+func (c *Client) DeleteSecretVersion(ctx context.Context, name string, version int) error {
+	if version < 1 {
+		return fmt.Errorf("positive expected secret version required")
+	}
+	return c.transport.request(ctx, http.MethodDelete, "/v1/secrets/"+url.PathEscape(name)+"?version="+strconv.Itoa(version), nil, "")
 }
 
 func (c *Client) ListSecrets(ctx context.Context) ([]SecretInfo, error) {

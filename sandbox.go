@@ -41,6 +41,9 @@ func createBody(options CreateOptions) map[string]any {
 		body["template"], body["memory_mb"], body["vcpu"] = template, valueOr(options.MemoryMB, 4096), valueOr(options.VCPU, 2)
 	}
 	body["enable_ssh"] = options.EnableSSH
+	if options.NetworkProfile != nil {
+		body["network_profile"] = *options.NetworkProfile
+	}
 	if options.Name != "" {
 		body["name"] = options.Name
 	}
@@ -61,6 +64,16 @@ func createBody(options CreateOptions) map[string]any {
 	}
 	if options.Secrets != nil {
 		body["secrets"] = options.Secrets
+	}
+	if options.SecretBundles != nil {
+		sources := make([]any, 0, len(options.Secrets)+len(options.SecretBundles))
+		for _, name := range options.Secrets {
+			sources = append(sources, name)
+		}
+		for _, reference := range options.SecretBundles {
+			sources = append(sources, reference)
+		}
+		body["secrets"] = sources
 	}
 	if options.NetworkAllow != nil || options.NetworkDeny != nil || options.EgressPreset != "" || options.PresetOptions != nil {
 		network := make(map[string]any)
@@ -230,6 +243,15 @@ func (c *Client) RunOnce(ctx context.Context, command Command, options RunOnceOp
 		body["keep_sandbox"] = true
 	}
 	var result OneShotResult
+	if options.InvocationSecrets != nil {
+		if options.KeepSandbox || options.IdempotencyKey != "" {
+			return nil, errors.New("private invocation input forbids retention or replay keys")
+		}
+		if err := c.transport.privateInvocation(ctx, body, options.InvocationSecrets, &result); err != nil {
+			return nil, err
+		}
+		return &result, nil
+	}
 	if err := c.transport.requestInto(ctx, http.MethodPost, "/v1/run", body, options.IdempotencyKey, &result); err != nil {
 		return nil, err
 	}
@@ -252,11 +274,12 @@ type Function struct {
 // so that an invocation can also clear a specification's default: a supplied
 // empty Cwd or Stdin is applied, an omitted one is not.
 type InvocationOverrides struct {
-	Cwd            *string
-	Env            map[string]string
-	Stdin          *string
-	TimeoutMs      *int
-	IdempotencyKey string
+	InvocationSecrets *InvocationSecrets
+	Cwd               *string
+	Env               map[string]string
+	Stdin             *string
+	TimeoutMs         *int
+	IdempotencyKey    string
 }
 
 // FunctionOptions is what a function specification is made of: the sandbox
@@ -268,24 +291,26 @@ type InvocationOverrides struct {
 // and reusing it would replay the first result or fail as a reused key. Use
 // RunOnce for a single run that keeps its sandbox, and InvokeWith for a key.
 type FunctionOptions struct {
-	Template      string
-	SnapshotID    string
-	Name          string
-	Region        string
-	MemoryMB      int
-	VCPU          int
-	EnableSSH     bool
-	SSHPublicKey  string
-	TTLSeconds    *int
-	Persist       *bool
-	Metadata      map[string]string
-	Volumes       []VolumeMount
-	Secrets       []string
-	NetworkAllow  []string
-	NetworkDeny   []string
-	EgressPreset  string
-	PresetOptions []string
-	VerifySNI     bool
+	NetworkProfile *NetworkProfileReference
+	Template       string
+	SnapshotID     string
+	Name           string
+	Region         string
+	MemoryMB       int
+	VCPU           int
+	EnableSSH      bool
+	SSHPublicKey   string
+	TTLSeconds     *int
+	Persist        *bool
+	Metadata       map[string]string
+	Volumes        []VolumeMount
+	Secrets        []string
+	SecretBundles  []SecretReference
+	NetworkAllow   []string
+	NetworkDeny    []string
+	EgressPreset   string
+	PresetOptions  []string
+	VerifySNI      bool
 
 	Cwd       string
 	Env       map[string]string
@@ -297,24 +322,26 @@ type FunctionOptions struct {
 func (o FunctionOptions) runOnceOptions() RunOnceOptions {
 	return RunOnceOptions{
 		CreateOptions: CreateOptions{
-			Template:      o.Template,
-			SnapshotID:    o.SnapshotID,
-			Name:          o.Name,
-			Region:        o.Region,
-			MemoryMB:      o.MemoryMB,
-			VCPU:          o.VCPU,
-			EnableSSH:     o.EnableSSH,
-			SSHPublicKey:  o.SSHPublicKey,
-			TTLSeconds:    o.TTLSeconds,
-			Persist:       o.Persist,
-			Metadata:      o.Metadata,
-			Volumes:       o.Volumes,
-			Secrets:       o.Secrets,
-			NetworkAllow:  o.NetworkAllow,
-			NetworkDeny:   o.NetworkDeny,
-			EgressPreset:  o.EgressPreset,
-			PresetOptions: o.PresetOptions,
-			VerifySNI:     o.VerifySNI,
+			Template:       o.Template,
+			SnapshotID:     o.SnapshotID,
+			Name:           o.Name,
+			Region:         o.Region,
+			MemoryMB:       o.MemoryMB,
+			VCPU:           o.VCPU,
+			EnableSSH:      o.EnableSSH,
+			SSHPublicKey:   o.SSHPublicKey,
+			TTLSeconds:     o.TTLSeconds,
+			Persist:        o.Persist,
+			Metadata:       o.Metadata,
+			Volumes:        o.Volumes,
+			Secrets:        o.Secrets,
+			SecretBundles:  o.SecretBundles,
+			NetworkProfile: o.NetworkProfile,
+			NetworkAllow:   o.NetworkAllow,
+			NetworkDeny:    o.NetworkDeny,
+			EgressPreset:   o.EgressPreset,
+			PresetOptions:  o.PresetOptions,
+			VerifySNI:      o.VerifySNI,
 		},
 		ExecOptions: ExecOptions{
 			Cwd:       o.Cwd,
@@ -356,6 +383,7 @@ func (f *Function) InvokeWith(ctx context.Context, overrides InvocationOverrides
 	if overrides.TimeoutMs != nil {
 		options.TimeoutMs = *overrides.TimeoutMs
 	}
+	options.InvocationSecrets = overrides.InvocationSecrets
 	options.IdempotencyKey = overrides.IdempotencyKey
 	return f.client.RunOnce(ctx, cloneCommand(f.command), options)
 }
@@ -369,6 +397,16 @@ func cloneRunOnceOptions(options RunOnceOptions) RunOnceOptions {
 	options.Metadata = cloneStringMap(options.Metadata)
 	options.Env = cloneStringMap(options.Env)
 	options.Secrets = cloneStrings(options.Secrets)
+	if options.SecretBundles != nil {
+		options.SecretBundles = append([]SecretReference(nil), options.SecretBundles...)
+		for i := range options.SecretBundles {
+			options.SecretBundles[i].RequiredKeys = cloneStrings(options.SecretBundles[i].RequiredKeys)
+		}
+	}
+	if options.NetworkProfile != nil {
+		copy := *options.NetworkProfile
+		options.NetworkProfile = &copy
+	}
 	options.NetworkAllow = cloneStrings(options.NetworkAllow)
 	options.NetworkDeny = cloneStrings(options.NetworkDeny)
 	options.PresetOptions = cloneStrings(options.PresetOptions)
