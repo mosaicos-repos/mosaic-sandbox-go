@@ -29,6 +29,7 @@ func Shell(cmd string) Command    { return Command{Cmd: cmd} }
 func Argv(argv ...string) Command { return Command{Argv: argv} }
 
 type CreateOptions struct {
+	NetworkProfile *NetworkProfileReference
 	Template       string
 	SnapshotID     string
 	Name           string
@@ -42,6 +43,7 @@ type CreateOptions struct {
 	Metadata       map[string]string
 	Volumes        []VolumeMount
 	Secrets        []string
+	SecretBundles  []SecretReference
 	NetworkAllow   []string
 	NetworkDeny    []string
 	EgressPreset   string
@@ -72,6 +74,7 @@ type ExecOptions struct {
 }
 
 type RunOnceOptions struct {
+	InvocationSecrets *InvocationSecrets
 	CreateOptions
 	ExecOptions
 	KeepSandbox bool
@@ -134,8 +137,10 @@ type ExecutionResult struct {
 
 type OneShotResult struct {
 	ExecutionResult
-	SandboxDestroyed bool     `json:"sandbox_destroyed"`
-	TimingsMS        *Timings `json:"timings_ms,omitempty"`
+	CleanupPending                 bool     `json:"cleanup_pending"`
+	InvocationSecretsGuestReadable bool     `json:"invocation_secrets_guest_readable"`
+	SandboxDestroyed               bool     `json:"sandbox_destroyed"`
+	TimingsMS                      *Timings `json:"timings_ms,omitempty"`
 }
 
 type Timings struct {
@@ -304,13 +309,21 @@ type VolumeInfo struct {
 	SizeBytes *int64 `json:"size_bytes,omitempty"`
 }
 
+type SecretAccessOptions struct {
+	Consumers []string
+	Version   int
+}
 type SecretInfo struct {
-	Name       string `json:"name"`
-	ValueBytes *int   `json:"value_bytes,omitempty"`
-	CreatedAt  string `json:"created_at,omitempty"`
-	UpdatedAt  string `json:"updated_at,omitempty"`
-	Rotated    bool   `json:"rotated,omitempty"`
-	Readable   *bool  `json:"readable,omitempty"`
+	Version       int      `json:"version,omitempty"`
+	Restricted    bool     `json:"restricted,omitempty"`
+	Consumers     []string `json:"consumers,omitempty"`
+	GuestReadable bool     `json:"guest_readable,omitempty"`
+	Name          string   `json:"name"`
+	ValueBytes    *int     `json:"value_bytes,omitempty"`
+	CreatedAt     string   `json:"created_at,omitempty"`
+	UpdatedAt     string   `json:"updated_at,omitempty"`
+	Rotated       bool     `json:"rotated,omitempty"`
+	Readable      *bool    `json:"readable,omitempty"`
 }
 
 type CPUAllocation struct {
