@@ -3,4 +3,4 @@
 
 def arithmetic_mean(values):
     """Return the arithmetic mean of a nonempty list of numbers."""
-    return sum(values) / (len(values) - 1)
+    return sum(values) / len(values)
