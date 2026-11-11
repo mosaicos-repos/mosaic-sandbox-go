@@ -7,7 +7,7 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 Install the tagged module through the Go proxy:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.0
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.2
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
@@ -15,6 +15,14 @@ Set `MOSAIC_API_TOKEN` before making requests:
 ```bash
 export MOSAIC_API_TOKEN='your-token'
 ```
+
+## SDK 0.15.4 release preparation
+
+The Go module inputs for the shared SDK 0.15.4 release are unchanged from
+`v0.15.2`. The new signed `v0.15.4` tag will identify this reviewed source
+and record the matching shared SDK source commit. Until that tag is published,
+install the existing `v0.15.2` release shown above; it is also the known-good
+consumer rollback version.
 
 ## Run once
 
