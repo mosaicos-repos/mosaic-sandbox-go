@@ -10,6 +10,12 @@ Install the tagged module through the Go proxy:
 go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.4
 ```
 
+After SDK 0.15.5 is published, install the new release with:
+
+```bash
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.5
+```
+
 Set `MOSAIC_API_TOKEN` before making requests:
 
 ```bash
