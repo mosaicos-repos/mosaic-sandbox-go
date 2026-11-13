@@ -7,7 +7,7 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 Install the tagged module through the Go proxy:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.2
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.4
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
@@ -16,13 +16,23 @@ Set `MOSAIC_API_TOKEN` before making requests:
 export MOSAIC_API_TOKEN='your-token'
 ```
 
-## SDK 0.15.4 release preparation
+## SDK 0.15.5 release preparation
 
-The Go module inputs for the shared SDK 0.15.4 release are unchanged from
-`v0.15.2`. The new signed `v0.15.4` tag will identify this reviewed source
-and record the matching shared SDK source commit. Until that tag is published,
-install the existing `v0.15.2` release shown above; it is also the known-good
-consumer rollback version.
+The Go module inputs for the shared SDK 0.15.5 release are unchanged from
+`v0.15.4`. All 18 module inputs match protected source commit
+`83df5dbffdb41c8bbefd8c867c06b7af2eb3e3dc`, prepared by
+[mosaic-sandbox#1614](https://github.com/mosaicos-repos/mosaic-sandbox/pull/1614).
+The new signed `v0.15.5` tag will identify this reviewed mirror PR's merge
+commit and carry this exact source provenance:
+
+```text
+Source: mosaicos-repos/mosaic-sandbox sdk-v0.15.5 (83df5dbffdb41c8bbefd8c867c06b7af2eb3e3dc)
+```
+
+Until that tag is published, install the existing `v0.15.4` release shown above;
+it is also the known-good consumer rollback version. Independent review,
+signed-tag verification, exact module parity, and clean-cache proxy installation
+remain release gates. This release does not deploy or activate server features.
 
 ## Run once
 
