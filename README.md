@@ -4,16 +4,16 @@ The Go SDK uses only the standard library and supports Go 1.22 or newer.
 
 ## Installation
 
-Install the tagged module through the Go proxy:
+Install the current release through the Go proxy:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.4
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.7
 ```
 
-After SDK 0.15.5 is published, install the new release with:
+After SDK 0.15.8 is published, install the new release with:
 
 ```bash
-go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.5
+go get github.com/mosaicos-repos/mosaic-sandbox-go@v0.15.8
 ```
 
 Set `MOSAIC_API_TOKEN` before making requests:
@@ -22,23 +22,29 @@ Set `MOSAIC_API_TOKEN` before making requests:
 export MOSAIC_API_TOKEN='your-token'
 ```
 
-## SDK 0.15.5 release preparation
+## SDK 0.15.8 release preparation
 
-The Go module inputs for the shared SDK 0.15.5 release are unchanged from
-`v0.15.4`. All 18 module inputs match protected source commit
-`83df5dbffdb41c8bbefd8c867c06b7af2eb3e3dc`, prepared by
-[mosaic-sandbox#1614](https://github.com/mosaicos-repos/mosaic-sandbox/pull/1614).
-The new signed `v0.15.5` tag will identify this reviewed mirror PR's merge
-commit and carry this exact source provenance:
+The Go module inputs are unchanged from `v0.15.7`. All 18 inputs match
+protected Mosaic Sandbox source commit
+`bafdd4eb74d4f9ceb4a4340f0761c3b583c9fcae`, including the release notes in
+[mosaic-sandbox#1753](https://github.com/mosaicos-repos/mosaic-sandbox/pull/1753).
+The coordinated Python and TypeScript release carries in-flight idempotency
+retry fixes; Python also accepts relative archive symlinks whose resolved
+target remains inside the destination. Go has no behavior changes.
+
+The proposed signed `v0.15.8` tag will identify this independently reviewed
+mirror PR's merge commit and include this exact provenance:
 
 ```text
-Source: mosaicos-repos/mosaic-sandbox sdk-v0.15.5 (83df5dbffdb41c8bbefd8c867c06b7af2eb3e3dc)
+Source: mosaicos-repos/mosaic-sandbox sdk-v0.15.8 (bafdd4eb74d4f9ceb4a4340f0761c3b583c9fcae)
 ```
 
-Until that tag is published, install the existing `v0.15.4` release shown above;
-it is also the known-good consumer rollback version. Independent review,
-signed-tag verification, exact module parity, and clean-cache proxy installation
-remain release gates. This release does not deploy or activate server features.
+The combined content digest of all 18 module inputs is
+`48bd381dea8f95f8c050881f2fed3f5e8bfba58313c90a061b028110920561d4`.
+Source/security checks, a successful staging rehearsal, verified signed tags,
+exact module parity, and a clean-cache Go proxy/checksum installation remain
+release gates. The package publisher separately requires independent approval
+in `package-publish`. Until publication, `v0.15.7` remains the consumer rollback.
 
 ## Run once
 
