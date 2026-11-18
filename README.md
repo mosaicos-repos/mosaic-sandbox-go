@@ -35,10 +35,22 @@ Go has no behavior changes.
 adds a guarded, expiring dependency exception and its release record without
 changing the frozen implementation. Once that reviewed preparation merges,
 the signed `sdk-v0.15.8` source tag will identify its final protected-main commit.
-The signed public `v0.15.8` tag on this mirror PR's merge commit will record the
-exact source repository, source tag and full source-commit SHA in its provenance
-line. Verify that line against the signed source tag; the source release's
-`go-sdk-release.json` also records both source and mirror commit identities.
+The final source is protected-main commit
+`d4a659da60e528e90f4bf86491dd10a0f46564da`, merged in source PR #1754 after
+Nitin Rao's Security review. The signed public `v0.15.8` tag on this mirror PR's
+merge commit will include this exact provenance line:
+
+```text
+Source: mosaicos-repos/mosaic-sandbox sdk-v0.15.8 (d4a659da60e528e90f4bf86491dd10a0f46564da)
+```
+
+Verify that identity against the signed source tag and its `go-sdk-release.json`,
+which also records the mirror commit. The source PR's independent model review
+retained a P2 about mutable scanner enforcement despite green source CI and OSV;
+Nitin's approval and merge do not make that model check green. Marshall then
+explicitly requested publication of the merged PR in the release chat. Preserve
+that review history in the release record and retain the remaining publisher
+gates.
 
 The combined content digest of all 18 module inputs is
 `48bd381dea8f95f8c050881f2fed3f5e8bfba58313c90a061b028110920561d4`.
