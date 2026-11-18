@@ -25,26 +25,28 @@ export MOSAIC_API_TOKEN='your-token'
 ## SDK 0.15.8 release preparation
 
 The Go module inputs are unchanged from `v0.15.7`. All 18 inputs match
-protected Mosaic Sandbox source commit
-`bafdd4eb74d4f9ceb4a4340f0761c3b583c9fcae`, including the release notes in
-[mosaic-sandbox#1753](https://github.com/mosaicos-repos/mosaic-sandbox/pull/1753).
-The coordinated Python and TypeScript release carries in-flight idempotency
-retry fixes; Python also accepts relative archive symlinks whose resolved
-target remains inside the destination. Go has no behavior changes.
+protected Mosaic Sandbox implementation snapshot
+`1c213a55c8e3e767ade7df5f1f1ec91d3fcd17e4` byte for byte. The coordinated
+Python/TypeScript release adds environment lookup by name and overload retries,
+in addition to in-flight idempotency retries and Python's safe archive symlinks.
+Go has no behavior changes.
 
-The proposed signed `v0.15.8` tag will identify this independently reviewed
-mirror PR's merge commit and include this exact provenance:
-
-```text
-Source: mosaicos-repos/mosaic-sandbox sdk-v0.15.8 (bafdd4eb74d4f9ceb4a4340f0761c3b583c9fcae)
-```
+[Source release preparation PR #1754](https://github.com/mosaicos-repos/mosaic-sandbox/pull/1754)
+adds a guarded, expiring dependency exception and its release record without
+changing the frozen implementation. Once that reviewed preparation merges,
+the signed `sdk-v0.15.8` source tag will identify its final protected-main commit.
+The signed public `v0.15.8` tag on this mirror PR's merge commit will record the
+exact source repository, source tag and full source-commit SHA in its provenance
+line. Verify that line against the signed source tag; the source release's
+`go-sdk-release.json` also records both source and mirror commit identities.
 
 The combined content digest of all 18 module inputs is
 `48bd381dea8f95f8c050881f2fed3f5e8bfba58313c90a061b028110920561d4`.
-Source/security checks, a successful staging rehearsal, verified signed tags,
-exact module parity, and a clean-cache Go proxy/checksum installation remain
-release gates. The package publisher separately requires independent approval
-in `package-publish`. Until publication, `v0.15.7` remains the consumer rollback.
+Source/security checks, a successful staging rehearsal at the final source
+commit, verified signed tags, exact module parity, and a clean-cache Go
+proxy/checksum installation remain release gates. The package publisher
+separately requires independent approval in `package-publish`. Until
+publication, `v0.15.7` remains the consumer rollback.
 
 ## Run once
 
